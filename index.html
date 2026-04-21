@@ -427,14 +427,25 @@
         }
 
         // --- GAME LOGIC ---
-        async function rollDice() {
-            if (state.isRolling || state.gameOver || state.isEditing || state.pendingSteps > 0) return;
-            if (audioElements.bg.paused) audioElements.bg.play().catch(() => {}); // Cố gắng phát nhạc nền
-            state.isRolling = true;
-            const diceVisual = document.getElementById('dice-visual');
-            document.getElementById('btn-roll').disabled = true;
-            diceVisual.classList.add('dice-shake');
-            playSfx('dice');
+       async function rollDice() {
+    // 1. Kiểm tra các điều kiện chặn gieo
+    if (state.isRolling || state.gameOver || state.isEditing || state.pendingSteps > 0) return;
+
+    // 2. "ĐÁNH THỨC" âm thanh: Khi người dùng click, ta phát nhạc nền ngay
+    // Việc này giúp trình duyệt hiểu rằng người dùng đã cho phép trang web phát tiếng
+    if (audioElements.bg.paused) {
+        audioElements.bg.play().catch(e => console.warn("Chờ click để phát nhạc"));
+    }
+
+    state.isRolling = true;
+    const diceVisual = document.getElementById('dice-visual');
+    document.getElementById('btn-roll').disabled = true;
+    diceVisual.classList.add('dice-shake');
+
+    // 3. Phát âm thanh xúc xắc ngay lúc này
+    playSfx('dice'); 
+
+    // ... (Các đoạn code xử lý quay số phía dưới giữ nguyên)
             let val = 0;
             for(let i=0; i<15; i++) {
                 val = Math.floor(Math.random() * 6) + 1;

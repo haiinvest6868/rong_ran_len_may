@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rồng Rắn Lên Mây - Studio Ultimate (Permanent Save)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pattaya&family=Be+Vietnam+Pro:wght@400;700&display=swap');
+        :root { --dragon-gold: #ffd700; --dragon-red: #d41f1f; }
+        body { 
+            font-family: 'Be Vietnam Pro', sans-serif; background: #0f0f0f; color: white; overflow-x: hidden;
+            background-image: radial-gradient(circle at center, #3a0000 0%, #000000 100%);
+        }
+        .font-pattaya { font-family: 'Pattaya', sans-serif; }
+        .board-wrapper {
+            position: relative; width: 1000px; height: 700px; margin: 0 auto;
+            background-color: #1a1a1a; border-radius: 40px; border: 4px solid var(--dragon-gold);
+            box-shadow: 0 0 80px rgba(212, 31, 31, 0.4); overflow: hidden;
+            background-position: center; background-size: cover; background-repeat: no-repeat;
+        }
+        .tile {
+            width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--dragon-gold); position: absolute; display: flex;
+            align-items: center; justify-content: center; font-weight: bold; color: #d41f1f;
+            z-index: 10; font-size: 0.9rem; transition: all 0.3s;
+        }
+        .tile.editing { border: 3px solid #00ff00; cursor: move; z-index: 100; background: white; box-shadow: 0 0 15px #00ff00; }
+        .tile-special-back { background: #ff4757; color: white; border-color: #fff; }
+        .tile-special-forward { background: #1e90ff; color: white; border-color: #fff; }
+        .tile-start { background: #2ed573; color: white; width: 68px; height: 68px; z-index: 11; border-width: 3px; }
+        .tile-end { background: #ff4757; color: white; width: 85px; height: 85px; z-index: 11; border-width: 4px; }
+
+        .player-avatar-token {
+            width: 52px; height: 52px; border-radius: 50%; border: 3px solid white;
+            position: absolute; z-index: 50; background-size: cover; background-position: center;
+            background-color: #222; box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+            color: white; pointer-events: none; text-shadow: 1px 1px 2px black;
+        }
+        .active-glow { animation: bounce-active 1.2s infinite alternate; z-index: 150 !important; border-color: var(--dragon-gold); box-shadow: 0 0 30px var(--dragon-gold); }
+        @keyframes bounce-active { from { transform: translateY(0) scale(1.1); } to { transform: translateY(-15px) scale(1.18); } }
+        
+        .dice-box { background: linear-gradient(135deg, #b91c1c 0%, #450a0a 100%); border: 3px solid var(--dragon-gold); }
+        .dice-shake { animation: shake 0.1s infinite; }
+        @keyframes shake { 0% { transform: translate(2px, 1px); } 50% { transform: translate(-1px, -2px); } 100% { transform: translate(1px, 2px); } }
+
+        #setup-window { position: fixed; top: 100px; right: 40px; width: 320px; background: rgba(15, 15, 15, 0.95); border: 2px solid #00ff00; border-radius: 24px; padding: 24px; z-index: 500; display: none; backdrop-filter: blur(10px); }
+        .edit-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 400; display: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 10px; }
+        .btn-save-mini { transition: all 0.2s; }
+        .btn-save-mini:active { transform: scale(0.8); }
+    </style>
+</head>
+<body class="p-4">
+
+    <div id="main-ui" class="max-w-[1400px] mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-6xl font-pattaya text-yellow-400 drop-shadow-lg">Rồng Rắn Lên Mây</h1>
+            <p class="text-yellow-500 font-bold uppercase tracking-[0.3em] text-xs mt-2">🏮 Lớp Rèn Tâm Vững Vàng - Studio Pro 🏮</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-3 space-y-4">
+                <div class="dice-box p-6 rounded-[2rem] text-center shadow-2xl relative overflow-hidden border-2">
+                    <div id="dice-visual" class="text-8xl mb-4 select-none cursor-pointer transition-transform active:scale-90">🎲</div>
+                    <button id="btn-roll" class="w-full bg-yellow-500 hover:bg-yellow-400 text-red-900 font-black py-4 rounded-2xl text-xl shadow-lg transition-all disabled:opacity-50 uppercase">GIEO XÚC XẮC</button>
+                    <div id="status-text" class="mt-4 text-white text-lg font-bold min-h-[1.5rem]"></div>
+                </div>
+
+                <div class="bg-black/60 p-4 rounded-[2rem] border border-yellow-500/30 backdrop-blur-md">
+                    <h2 class="text-yellow-500 font-bold mb-4 flex items-center gap-2 border-b border-yellow-500/20 pb-2 italic">👥 Đội Ngũ Đồng Hành</h2>
+                    <div id="ui-player-list" class="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar"></div>
+                    <div class="flex flex-col gap-2 mt-6">
+                        <button id="btn-settings" class="w-full py-2 bg-white/10 rounded-xl text-xs text-gray-300 hover:bg-white/20 transition uppercase font-bold">⚙️ Thiết lập Studio</button>
+                        <button onclick="clearSaveData()" class="w-full py-1 text-[10px] text-red-400 opacity-50 hover:opacity-100 italic">Khôi phục mặc định gốc</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-9 relative">
+                <div class="board-wrapper" id="game-board">
+                    <div id="layer-tiles" class="relative z-10 w-full h-full"></div>
+                    <div id="layer-players" class="absolute inset-0 z-20 pointer-events-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="edit-overlay" id="edit-overlay"></div>
+    <div id="setup-window">
+        <h3 class="text-xl font-pattaya text-green-400 mb-4 border-b border-green-900 pb-2">Thiết Kế Đường Rồng</h3>
+        <button id="btn-finish-edit" class="w-full bg-green-600 text-white py-4 rounded-xl text-lg font-bold hover:bg-green-500 shadow-lg uppercase">LƯU VỊ TRÍ</button>
+    </div>
+
+    <div id="modal-riddle" class="fixed inset-0 bg-black/95 hidden z-[1000] flex items-center justify-center p-4">
+        <div class="bg-gradient-to-b from-red-800 to-black p-1 rounded-3xl max-w-xl w-full border-2 border-yellow-500 shadow-[0_0_50px_rgba(0,0,0,1)]">
+            <div class="bg-zinc-900/90 p-8 rounded-3xl text-center">
+                <div id="modal-dice-display" class="text-7xl mb-2 drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]">⚀</div>
+                <div class="flex justify-between items-start mb-4">
+                    <h3 id="riddle-title" class="text-3xl font-pattaya text-yellow-400">Thử Thách Tâm</h3>
+                    <button id="btn-tts" class="text-2xl hover:scale-110 transition p-2 bg-white/10 rounded-full" title="Nghe câu đố">🔊</button>
+                </div>
+                <div class="bg-black/50 p-6 rounded-2xl mb-6 min-h-[120px] flex items-center justify-center border border-white/5 shadow-inner">
+                    <p id="riddle-content" class="text-xl text-white italic leading-relaxed font-medium"></p>
+                </div>
+
+                <!-- CẢI TIẾN: ĐỒNG HỒ BẤM GIỜ TẠI MODAL -->
+                <div class="bg-black/30 p-4 rounded-2xl mb-6 border border-yellow-500/20">
+                    <div id="timer-display" class="text-5xl font-mono font-bold text-yellow-400 mb-4 tracking-widest">00:30</div>
+                    
+                    <div class="flex justify-center gap-4 mb-4">
+                        <div class="flex flex-col text-center">
+                            <label class="text-[10px] text-gray-400 uppercase">Phút</label>
+                            <input type="number" id="timer-min" value="0" min="0" max="59" class="w-16 bg-black border border-yellow-500/50 rounded text-center text-xl text-white">
+                        </div>
+                        <div class="flex flex-col text-center">
+                            <label class="text-[10px] text-gray-400 uppercase">Giây</label>
+                            <input type="number" id="timer-sec" value="30" min="0" max="59" class="w-16 bg-black border border-yellow-500/50 rounded text-center text-xl text-white">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center gap-2">
+                        <button id="timer-start" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-xs font-bold transition">START</button>
+                        <button id="timer-pause" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-xs font-bold transition">PAUSE</button>
+                        <button id="timer-stop" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-bold transition">STOP/RESET</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <button id="btn-ai-judge" class="bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-500 transition text-xs uppercase">✨ Trọng tài AI</button>
+                    <button id="btn-change-riddle" class="bg-gray-700 text-yellow-400 font-bold py-3 rounded-2xl hover:bg-gray-600 border border-yellow-500/30 transition text-xs uppercase">🔄 Đổi câu</button>
+                    <button id="btn-close-riddle" class="bg-yellow-500 text-red-900 font-bold py-3 rounded-2xl hover:bg-yellow-400 transition text-xs uppercase shadow-xl">Xác nhận đi ➔</button>
+                </div>
+                <div id="ai-comment-box" class="hidden mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-200 text-sm italic text-left">
+                    <p id="ai-comment-text"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TÍNH NĂNG MỚI: MODAL KẾT THÚC GAME -->
+    <div id="modal-game-over" class="fixed inset-0 bg-black/90 hidden z-[2000] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-gradient-to-b from-yellow-900 to-red-950 border-2 border-yellow-500 rounded-[2.5rem] p-8 text-center max-w-md w-full shadow-[0_0_80px_rgba(255,215,0,0.4)]">
+            <div class="text-8xl mb-6 animate-bounce">🏆</div>
+            <h2 class="text-5xl font-pattaya text-yellow-400 mb-2 drop-shadow-md">Vinh Quang!</h2>
+            <p id="game-over-winner" class="text-2xl text-white font-bold mb-8"></p>
+            <div class="flex gap-4 justify-center">
+                <button id="btn-play-again" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-2xl uppercase transition shadow-lg border-2 border-green-400 text-sm">🔄 Chơi Lại</button>
+                <button id="btn-stop-playing" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-2xl uppercase transition shadow-lg border-2 border-gray-500 text-sm">⛔ Dừng Game</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-settings" class="fixed inset-0 bg-black/95 hidden z-[600] overflow-y-auto p-4">
+        <div class="bg-zinc-900 border-2 border-yellow-500 rounded-[2.5rem] max-w-6xl mx-auto my-4 p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-8 border-b border-yellow-500/30 pb-4">
+                <h2 class="text-4xl font-pattaya text-yellow-400">Thiết Lập Studio</h2>
+                <button id="btn-close-settings" class="text-gray-400 hover:text-white text-3xl">✕</button>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-yellow-500 mb-4 border-l-4 border-yellow-500 pl-3 uppercase">1. Giao Diện</h3>
+                        <div class="bg-zinc-800 p-5 rounded-3xl space-y-4 shadow-inner">
+                            <label class="text-xs text-gray-500 font-bold block italic">Hình nền bàn cờ</label>
+                            <input type="file" id="input-bg-upload" accept="image/*" class="w-full text-xs text-gray-400 font-bold">
+                            <button id="btn-open-layout-mode" class="w-full bg-green-700 text-white py-3 rounded-xl font-bold hover:bg-green-600 transition">CHỈNH VỊ TRÍ Ô</button>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-yellow-500 mb-4 border-l-4 border-yellow-500 pl-3 uppercase">2. Âm Thanh</h3>
+                        <div id="audio-settings-list" class="bg-zinc-800 p-5 rounded-3xl space-y-4 max-h-[350px] overflow-y-auto custom-scrollbar shadow-inner text-black">
+                            <!-- JS nạp danh sách âm thanh -->
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-yellow-500 mb-4 border-l-4 border-yellow-500 pl-3 uppercase">3. Người Chơi</h3>
+                    <div class="bg-black/40 p-4 rounded-3xl mb-4 flex items-center justify-between border border-yellow-500/20">
+                        <span class="text-sm font-bold text-white">SỐ LƯỢNG:</span>
+                        <div class="flex items-center gap-4">
+                            <button onclick="changePlayerCount(-1)" class="w-10 h-10 bg-red-900/50 rounded-full text-2xl font-bold border border-red-500 hover:bg-red-800 transition">-</button>
+                            <span id="ui-player-count" class="text-2xl font-bold text-yellow-400 font-mono">7</span>
+                            <button onclick="changePlayerCount(1)" class="w-10 h-10 bg-green-900/50 rounded-full text-2xl font-bold border border-green-500 hover:bg-green-800 transition">+</button>
+                        </div>
+                    </div>
+                    <div id="settings-players" class="space-y-3 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar shadow-inner"></div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-yellow-500 mb-4 border-l-4 border-yellow-500 pl-3 uppercase">4. Thử Thách</h3>
+                    <div id="settings-riddles" class="space-y-2 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar shadow-inner"></div>
+                </div>
+            </div>
+            <div class="mt-10 pt-6 border-t border-yellow-500/30 text-center">
+                <button id="btn-save-all" class="w-2/3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-5 rounded-2xl text-2xl shadow-xl uppercase">LƯU TỔNG THỂ & CHƠI TIẾP</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_NAMES = ["Huyên", "Phương", "Loan Đạo", "Loan Quan", "Minh Nhiên", "Bách", "Hải", "Tuấn", "Lan", "Phong"];
+        const DEFAULT_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#8b5cf6"];
+        const DICE_ICONS = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+        
+        // HẰNG SỐ ĐỂ ĐỒNG BỘ LOGIC TẢI ÂM THANH
+        const LOCAL_AUDIO_MSG = "Đã lưu Dữ liệu từ máy tính (Không sửa)";
+        
+        let COORDS = [
+            {x: 60, y: 620}, {x: 140, y: 580}, {x: 220, y: 540}, {x: 320, y: 530}, {x: 430, y: 550}, {x: 530, y: 590}, {x: 640, y: 600},
+            {x: 740, y: 560}, {x: 810, y: 460}, {x: 790, y: 360}, {x: 710, y: 290}, {x: 610, y: 250}, {x: 500, y: 260},
+            {x: 400, y: 310}, {x: 300, y: 260}, {x: 280, y: 140}, {x: 380, y: 80}, {x: 500, y: 60}, {x: 650, y: 100}
+        ];
+
+        let gameAudio = {
+            bg: { label: "Nhạc nền", url: "https://www.chosic.com/wp-content/uploads/2021/07/The-Grand-Adventure.mp3", vol: 0.3 },
+            dice: { label: "Gieo xúc xắc", url: "https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3", vol: 0.8 },
+            step: { label: "Bước đi", url: "https://assets.mixkit.co/active_storage/sfx/2014/2014-preview.mp3", vol: 0.6 },
+            win: { label: "Chiến thắng", url: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3", vol: 0.9 },
+            fail: { label: "Lùi bước", url: "https://www.soundjay.com/buttons/sounds/button-10.mp3", vol: 0.7 },
+            lucky: { label: "May mắn", url: "https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3", vol: 0.8 },
+            tick: { label: "Tích tắc (60s cuối)", url: "https://www.soundjay.com/clock/sounds/clock-ticking-2.mp3", vol: 0.5 },
+            alarm: { label: "Chuông báo hết giờ", url: "https://www.soundjay.com/buttons/sounds/beep-01a.mp3", vol: 0.8 }
+        };
+
+        const audioElements = {};
+        function initAudio() {
+            Object.keys(gameAudio).forEach(key => {
+                if (audioElements[key]) { audioElements[key].pause(); audioElements[key].src = ""; }
+                audioElements[key] = new Audio();
+                audioElements[key].src = gameAudio[key].url;
+                audioElements[key].loop = (key === 'bg' || key === 'tick');
+                audioElements[key].volume = gameAudio[key].vol;
+                audioElements[key].load(); 
+            });
+        }
+
+        function playSfx(key) {
+            if (audioElements[key]) {
+                audioElements[key].currentTime = 0;
+                // Bắt lỗi khi chưa tương tác trang (Policy của trình duyệt)
+                audioElements[key].play().catch(e => console.warn(`Cần tương tác người dùng để phát: ${key}`));
+            }
+        }
+
+        function stopSfx(key) {
+            if (audioElements[key]) {
+                audioElements[key].pause();
+                audioElements[key].currentTime = 0;
+            }
+        }
+
+        // Lấy 7 người chơi đầu tiên làm mặc định
+        let initialPlayers = Array(7).fill(null).map((_, i) => ({ 
+            name: DEFAULT_NAMES[i], 
+            color: DEFAULT_COLORS[i], 
+            avatar: "", 
+            pos: 0 
+        }));
+
+        let state = {
+            players: initialPlayers,
+            turn: 0,
+            isRolling: false,
+            pendingSteps: 0,
+            specials: { back: [5, 13], forward: [4, 11] },
+            riddles: Array(18).fill(null).map((_, i) => `Câu đố ô ${i+1}: Tâm bạn đang cảm thấy thế nào?`),
+            gameOver: false,
+            isEditing: false,
+            bgImage: 'https://img.freepik.com/premium-photo/golden-chinese-dragon-background_81048-3561.jpg'
+        };
+
+        // --- DATABASE INDEXEDDB ---
+        const dbName = "DragonProDB_V4";
+        let db;
+        const dbReq = indexedDB.open(dbName, 1);
+        dbReq.onupgradeneeded = (e) => { e.target.result.createObjectStore("settings", { keyPath: "id" }); };
+        dbReq.onsuccess = (e) => { db = e.target.result; loadAllFromDB(); };
+
+        function saveAllToDB() {
+            // Lấy dữ liệu tên
+            document.querySelectorAll('.p-name-input').forEach((input, i) => { if(state.players[i]) state.players[i].name = input.value; });
+            // Lấy dữ liệu câu đố
+            document.querySelectorAll('.p-riddle-input').forEach((input, i) => { state.riddles[i] = input.value; });
+            
+            // CẢI TIẾN LƯU URL ÂM THANH (Fix Lỗi mất tiếng)
+            document.querySelectorAll('.audio-url-input').forEach((input, i) => { 
+                const key = Object.keys(gameAudio)[i];
+                // Chỉ gán đè URL nếu input.value có dữ liệu và không phải là chuỗi đại diện cho File Base64
+                if (input.value && input.value !== LOCAL_AUDIO_MSG) {
+                    gameAudio[key].url = input.value; 
+                }
+            });
+
+            const dataToSave = {
+                id: "master_save",
+                COORDS, gameAudio, riddles: state.riddles, bgImage: state.bgImage,
+                players: state.players.map(p => ({ name: p.name, avatar: p.avatar, color: p.color }))
+            };
+
+            const tx = db.transaction("settings", "readwrite");
+            tx.objectStore("settings").put(dataToSave).oncomplete = () => { initAudio(); };
+        }
+
+        function loadAllFromDB() {
+            const tx = db.transaction("settings", "readonly");
+            const req = tx.objectStore("settings").get("master_save");
+            req.onsuccess = () => {
+                if (req.result) {
+                    const d = req.result;
+                    if (d.COORDS) COORDS = d.COORDS;
+                    if (d.gameAudio) gameAudio = d.gameAudio;
+                    if (d.riddles) state.riddles = d.riddles;
+                    if (d.bgImage) state.bgImage = d.bgImage;
+                    if (d.players) state.players = d.players.map(p => ({ ...p, pos: 0 }));
+                }
+                document.getElementById('ui-player-count').innerText = state.players.length;
+                initAudio(); renderBoard(); drawAvatars(); updatePlayerUI(); updateStatus();
+            };
+        }
+
+        function clearSaveData() {
+            if (confirm("Xóa sạch toàn bộ dữ liệu Studio và khởi động lại?")) {
+                const tx = db.transaction("settings", "readwrite");
+                tx.objectStore("settings").delete("master_save");
+                location.reload();
+            }
+        }
+
+        // --- TÍNH NĂNG THAY ĐỔI SỐ NGƯỜI CHƠI ---
+        window.changePlayerCount = (delta) => {
+            let currentCount = state.players.length;
+            let newCount = currentCount + delta;
+            
+            // Giới hạn số lượng người chơi từ 2 đến 10
+            if (newCount < 2 || newCount > 10) return;
+
+            if (delta > 0) {
+                // Thêm người chơi mới
+                state.players.push({
+                    name: DEFAULT_NAMES[currentCount] || `Người chơi ${currentCount + 1}`,
+                    color: DEFAULT_COLORS[currentCount % DEFAULT_COLORS.length],
+                    avatar: "",
+                    pos: 0
+                });
+            } else {
+                // Xóa người chơi cuối cùng
+                state.players.pop();
+                // Đảm bảo lượt chơi không vượt quá số người hiện tại
+                if (state.turn >= state.players.length) state.turn = 0;
+            }
+
+            document.getElementById('ui-player-count').innerText = state.players.length;
+            setupSettingsUI(); // Cập nhật lại giao diện cài đặt
+            updatePlayerUI();  // Cập nhật danh sách hiển thị bên trái
+            drawAvatars();     // Vẽ lại Avatar trên bàn cờ
+        };
+
+
+        // --- TIMER LOGIC ---
+        let countdown;
+        let totalSeconds;
+        let timerRunning = false;
+
+        function updateTimerDisplay() {
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            const display = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            document.getElementById('timer-display').innerText = display;
+
+            // Âm thanh tích tắc khi còn dưới 60 giây và đang chạy
+            if (totalSeconds <= 60 && totalSeconds > 0 && timerRunning) {
+                if (audioElements.tick.paused) audioElements.tick.play();
+                document.getElementById('timer-display').classList.add('text-red-500', 'animate-pulse');
+            } else {
+                stopSfx('tick');
+                document.getElementById('timer-display').classList.remove('text-red-500', 'animate-pulse');
+            }
+        }
+
+        function startTimer() {
+            if (timerRunning) return;
+            
+            // Lấy giá trị mới từ input nếu timer không phải đang tạm dừng
+            if (!countdown || countdown === "paused") {
+                const mins = parseInt(document.getElementById('timer-min').value) || 0;
+                const secs = parseInt(document.getElementById('timer-sec').value) || 0;
+                totalSeconds = (mins * 60) + secs;
+            }
+
+            if (totalSeconds <= 0) return;
+
+            timerRunning = true;
+            countdown = setInterval(() => {
+                totalSeconds--;
+                updateTimerDisplay();
+
+                if (totalSeconds <= 0) {
+                    clearInterval(countdown);
+                    countdown = null;
+                    timerRunning = false;
+                    stopSfx('tick');
+                    playSfx('alarm'); // Tiếng báo hết giờ
+                    alert("Hết thời gian thử thách!");
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            clearInterval(countdown);
+            countdown = "paused"; 
+            timerRunning = false;
+            stopSfx('tick');
+        }
+
+        function stopTimer() {
+            clearInterval(countdown);
+            countdown = null;
+            timerRunning = false;
+            stopSfx('tick');
+            const mins = parseInt(document.getElementById('timer-min').value) || 0;
+            const secs = parseInt(document.getElementById('timer-sec').value) || 0;
+            totalSeconds = (mins * 60) + secs;
+            updateTimerDisplay();
+        }
+
+        // --- GAME LOGIC ---
+        async function rollDice() {
+            if (state.isRolling || state.gameOver || state.isEditing || state.pendingSteps > 0) return;
+            if (audioElements.bg.paused) audioElements.bg.play().catch(() => {}); // Cố gắng phát nhạc nền
+            state.isRolling = true;
+            const diceVisual = document.getElementById('dice-visual');
+            document.getElementById('btn-roll').disabled = true;
+            diceVisual.classList.add('dice-shake');
+            playSfx('dice');
+            let val = 0;
+            for(let i=0; i<15; i++) {
+                val = Math.floor(Math.random() * 6) + 1;
+                diceVisual.innerText = DICE_ICONS[val-1];
+                await new Promise(r => setTimeout(r, 70));
+            }
+            diceVisual.classList.remove('dice-shake');
+            state.pendingSteps = val;
+            state.isRolling = false;
+            let targetPos = Math.min(18, state.players[state.turn].pos + val);
+            document.getElementById('modal-dice-display').innerText = DICE_ICONS[val-1];
+            if (targetPos === 18) showRiddle("ĐÍCH ĐẾN", "Tâm vững vàng, bạn đã về ĐÍCH!");
+            else {
+                showRiddle(`THỬ THÁCH Ô ${targetPos}`, state.riddles[targetPos - 1]);
+                stopTimer(); // Reset đồng hồ về trạng thái chờ bấm START
+            }
+            updateStatus();
+        }
+
+        function closeRiddle() {
+            stopTimer();
+            window.speechSynthesis.cancel(); // Dừng đọc nếu đang đọc
+            document.getElementById('modal-riddle').classList.add('hidden');
+            document.getElementById('ai-comment-box').classList.add('hidden'); // Ẩn bình luận AI
+            
+            if (state.pendingSteps > 0) {
+                movePlayerStepByStep(state.pendingSteps);
+                state.pendingSteps = 0;
+            } else if (state.gameOver) {
+                // TÍNH NĂNG MỚI: Hiện Modal chức năng Kết Thúc Game
+                document.getElementById('game-over-winner').innerText = `Người thắng cuộc: ${state.players[state.turn].name}`;
+                document.getElementById('modal-game-over').classList.remove('hidden');
+            } else {
+                finishTurn();
+            }
+        }
+
+        function movePlayerStepByStep(steps) {
+            const p = state.players[state.turn];
+            let currentStep = 0;
+            const timer = setInterval(() => {
+                if (currentStep < steps && p.pos < 18) {
+                    p.pos++; currentStep++;
+                    playSfx('step');
+                    drawAvatars(); updatePlayerUI();
+                } else {
+                    clearInterval(timer);
+                    setTimeout(() => checkTileAction(p.pos), 300);
+                }
+            }, 450);
+        }
+
+        function checkTileAction(pos) {
+            const p = state.players[state.turn];
+            if (pos === 18) {
+                playSfx('win'); state.gameOver = true; updateStatus();
+                showRiddle("VINH QUANG!", `Chúc mừng ${p.name} đã về đích xuất sắc!`);
+                // TÍNH NĂNG MỚI: Đổi chữ nút thành Xem Kết Quả
+                document.getElementById('btn-close-riddle').innerText = "XEM KẾT QUẢ ➔";
+            } 
+            else if (state.specials.back.includes(pos)) {
+                playSfx('fail');
+                showRiddle("HƠI TIẾC!", "Xao động... lùi về vạch xuất phát.");
+                p.pos = 0; drawAvatars();
+                document.getElementById('btn-close-riddle').innerText = "Đổi lượt";
+            } 
+            else if (state.specials.forward.includes(pos)) {
+                playSfx('lucky');
+                setTimeout(() => { movePlayerStepByStep(3); }, 800);
+            } 
+            else finishTurn();
+        }
+
+        function finishTurn() {
+            if(!state.gameOver) {
+                state.turn = (state.turn + 1) % state.players.length;
+                document.getElementById('btn-roll').disabled = false;
+                document.getElementById('btn-close-riddle').innerText = "Xác nhận đi ➔";
+                updateStatus(); updatePlayerUI(); drawAvatars();
+            }
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('game-board');
+            const container = document.getElementById('layer-tiles');
+            board.style.backgroundImage = `url(${state.bgImage})`;
+            container.innerHTML = '';
+            COORDS.forEach((coord, i) => {
+                const tile = document.createElement('div');
+                tile.className = `tile ${state.isEditing ? 'editing' : ''}`;
+                tile.style.left = coord.x + 'px'; tile.style.top = coord.y + 'px';
+                if (i === 0) tile.innerHTML = 'ĐUÔI';
+                else if (i === 18) tile.innerHTML = 'ĐÍCH';
+                else if (state.specials.back.includes(i)) tile.innerHTML = '↺';
+                else if (state.specials.forward.includes(i)) tile.innerHTML = '+3';
+                else tile.innerText = i;
+                if (state.isEditing) makeDraggable(tile, i);
+                container.appendChild(tile);
+            });
+        }
+
+        function drawAvatars() {
+            const layer = document.getElementById('layer-players');
+            layer.innerHTML = '';
+            const posMap = {};
+            state.players.forEach((p, idx) => {
+                if (!posMap[p.pos]) posMap[p.pos] = [];
+                posMap[p.pos].push({ ...p, idx });
+            });
+            Object.keys(posMap).forEach(pos => {
+                const playersAtPos = posMap[pos];
+                playersAtPos.forEach((p, i) => {
+                    const coord = COORDS[p.pos];
+                    const av = document.createElement('div');
+                    av.className = `player-avatar-token ${state.turn === p.idx && !state.gameOver ? 'active-glow' : ''}`;
+                    const offset = i * 7;
+                    av.style.left = (coord.x + 1 + offset) + 'px';
+                    av.style.top = (coord.y + 1 + offset) + 'px';
+                    if (p.avatar) av.style.backgroundImage = `url(${p.avatar})`;
+                    else { av.style.backgroundColor = p.color; av.innerText = p.name[0]; }
+                    layer.appendChild(av);
+                });
+            });
+        }
+
+        function makeDraggable(el, index) {
+            el.onmousedown = (e) => {
+                let rect = document.getElementById('game-board').getBoundingClientRect();
+                let shiftX = e.clientX - el.getBoundingClientRect().left;
+                let shiftY = e.clientY - el.getBoundingClientRect().top;
+                function move(e) {
+                    let x = e.clientX - shiftX - rect.left;
+                    let y = e.clientY - shiftY - rect.top;
+                    el.style.left = x + 'px'; el.style.top = y + 'px';
+                    COORDS[index] = { x, y };
+                    drawAvatars();
+                }
+                document.onmousemove = move;
+                document.onmouseup = () => { document.onmousemove = null; saveAllToDB(); };
+            };
+        }
+
+        function setupSettingsUI() {
+            const audioCont = document.getElementById('audio-settings-list'); audioCont.innerHTML = '';
+            Object.keys(gameAudio).forEach((key, i) => {
+                const item = gameAudio[key];
+                const div = document.createElement('div');
+                div.className = "p-3 bg-white/5 rounded-2xl border border-white/5 space-y-2 mb-2";
+                
+                // CẢI TIẾN: Kiểm tra nếu URL là Base64 thì dùng hằng số chuẩn
+                const isLocal = item.url.startsWith('data:audio');
+                const displayValue = isLocal ? LOCAL_AUDIO_MSG : item.url;
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-center text-white">
+                        <span class="text-[10px] font-bold uppercase">${item.label}</span>
+                        <div class="flex gap-2">
+                             <button onclick="playSfx('${key}')" class="text-[10px] bg-white/10 px-2 py-1 rounded hover:bg-white/30">Thử</button>
+                             <button onclick="saveAllToDB(); alert('Đã lưu!');" class="text-[10px] bg-blue-600 px-2 py-1 rounded text-white font-bold hover:bg-blue-500">💾</button>
+                        </div>
+                    </div>
+                    <input type="text" value="${displayValue}" class="audio-url-input w-full bg-black text-[10px] p-2 rounded border border-white/10 text-yellow-400 outline-none">
+                    <input type="file" accept="audio/*" onchange="uploadAudioFile('${key}', event, this)" class="text-[10px] text-gray-500 w-full mt-1">
+                `;
+                audioCont.appendChild(div);
+            });
+
+            const pCont = document.getElementById('settings-players'); pCont.innerHTML = '';
+            state.players.forEach((p, i) => {
+                const div = document.createElement('div');
+                div.className = "bg-zinc-800 p-4 rounded-2xl border border-white/5 mb-3 text-white";
+                div.innerHTML = `
+                    <div class="flex items-center gap-4 mb-2">
+                        <div id="prev-${i}" class="w-12 h-12 rounded-full overflow-hidden bg-black border border-yellow-500 flex items-center justify-center font-bold" style="background-color: ${p.color}">
+                            ${p.avatar ? `<img src="${p.avatar}" class="w-full h-full object-cover">` : p.name[0]}
+                        </div>
+                        <div class="flex-1 flex gap-2">
+                            <input type="text" value="${p.name}" class="p-name-input flex-1 bg-black border-none rounded p-1 text-yellow-400 text-sm outline-none">
+                            <button onclick="saveAllToDB(); alert('Đã lưu tên!')" class="bg-blue-600 px-2 rounded btn-save-mini hover:bg-blue-500">💾</button>
+                        </div>
+                    </div>
+                    <input type="file" accept="image/*" onchange="uploadAv(event, ${i})" class="text-[10px] cursor-pointer text-gray-500">`;
+                pCont.appendChild(div);
+            });
+
+            const rCont = document.getElementById('settings-riddles'); rCont.innerHTML = '';
+            state.riddles.forEach((r, i) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-2 bg-zinc-800/50 p-2 rounded-lg mb-1 text-white";
+                div.innerHTML = `
+                    <span class="text-yellow-500 font-bold w-6 text-xs">${i+1}</span>
+                    <input type="text" value="${r}" class="p-riddle-input flex-1 bg-transparent text-xs text-gray-300 outline-none">
+                    <button onclick="saveAllToDB(); alert('Đã lưu câu đố!')" class="text-[10px] bg-blue-600 px-2 py-1 rounded btn-save-mini text-white font-bold hover:bg-blue-500">💾</button>`;
+                rCont.appendChild(div);
+            });
+        }
+
+        window.uploadAv = (e, i) => {
+            const f = e.target.files[0];
+            if (f) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { 
+                    state.players[i].avatar = ev.target.result;
+                    document.getElementById(`prev-${i}`).innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover">`;
+                    saveAllToDB();
+                    drawAvatars();
+                };
+                reader.readAsDataURL(f);
+            }
+        };
+
+        window.uploadAudioFile = (key, event, inputElement) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => { 
+                    gameAudio[key].url = e.target.result; 
+                    // Cập nhật lại UI ô text input ngay lập tức
+                    const textInput = inputElement.previousElementSibling;
+                    if(textInput && textInput.classList.contains('audio-url-input')) {
+                        textInput.value = LOCAL_AUDIO_MSG;
+                    }
+                    saveAllToDB(); 
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        function updatePlayerUI() {
+            const list = document.getElementById('ui-player-list'); list.innerHTML = '';
+            state.players.forEach((p, idx) => {
+                const active = state.turn === idx;
+                const div = document.createElement('div');
+                div.className = `flex items-center gap-3 p-3 rounded-2xl transition-all ${active ? 'bg-yellow-500/20 border border-yellow-500 scale-105 shadow-lg font-bold' : 'opacity-50'}`;
+                div.innerHTML = `<div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white shadow-inner" style="background-color:${p.color}">${p.avatar ? `<img src="${p.avatar}" class="w-full h-full rounded-full object-cover">` : p.name[0]}</div>
+                                 <div><p class="text-sm font-bold text-white">${p.name}</p><p class="text-[10px] text-gray-400 uppercase">Ô ${p.pos}</p></div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function updateStatus() {
+            const st = document.getElementById('status-text');
+            if(state.gameOver) st.innerHTML = "<span class='text-green-400 animate-bounce uppercase font-pattaya text-xl'>XONG RỒI!</span>";
+            else if (state.pendingSteps > 0) st.innerHTML = `Bước gieo: <span class="text-yellow-400 text-2xl">${state.pendingSteps}</span>.`;
+            else st.innerHTML = `Lượt: <span class="text-yellow-400 font-pattaya text-xl">${state.players[state.turn].name}</span>`;
+        }
+
+        function showRiddle(t, c) {
+            document.getElementById('riddle-title').innerText = t;
+            document.getElementById('riddle-content').innerText = c;
+            document.getElementById('modal-riddle').classList.remove('hidden');
+            document.getElementById('ai-comment-box').classList.add('hidden'); // Reset bình luận AI
+        }
+
+        function changeRiddleRandomly() {
+            const current = document.getElementById('riddle-content').innerText;
+            let random = "";
+            do { random = state.riddles[Math.floor(Math.random() * state.riddles.length)]; } 
+            while (random === current && state.riddles.length > 1);
+            document.getElementById('riddle-content').innerText = random;
+            document.getElementById('ai-comment-box').classList.add('hidden'); // Ẩn bình luận AI cũ
+            playSfx('step');
+            stopTimer(); // Để đồng hồ chờ cho câu mới
+            window.speechSynthesis.cancel(); // Dừng đọc câu cũ
+        }
+
+        // --- CẢI TIẾN: TTS VÀ AI JUDGE LOGIC ---
+        document.getElementById('btn-tts').onclick = () => {
+            const textToSpeak = document.getElementById('riddle-content').innerText;
+            if (!textToSpeak) return;
+            
+            // Hủy nếu đang đọc dở
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'vi-VN'; // Đặt giọng tiếng Việt
+            utterance.rate = 1.0;     // Tốc độ bình thường
+            
+            window.speechSynthesis.speak(utterance);
+        };
+
+        const aiResponses = [
+            "✨ Tâm trí bạn đang cần tĩnh lặng. Hãy thử nhắm mắt hít sâu 3 nhịp trước khi trả lời.",
+            "✨ Một góc nhìn rất thú vị! Sự chân thành chính là chìa khóa vượt qua thử thách này.",
+            "✨ Có vẻ bạn đang chần chừ. Hãy tin vào trực giác đầu tiên của mình.",
+            "✨ AI nhận thấy sự tích cực trong suy nghĩ của bạn. Cứ giữ vững tinh thần nhé!",
+            "✨ Đôi khi không có câu trả lời đúng hay sai, quan trọng là bạn đã đối diện với nó."
+        ];
+
+        document.getElementById('btn-ai-judge').onclick = () => {
+            const commentBox = document.getElementById('ai-comment-box');
+            const commentText = document.getElementById('ai-comment-text');
+            
+            // Random bình luận của AI
+            const randomCmt = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+            commentText.innerText = randomCmt;
+            
+            commentBox.classList.remove('hidden');
+            commentBox.classList.add('animate-pulse');
+            setTimeout(() => commentBox.classList.remove('animate-pulse'), 1000);
+        };
+
+
+        // --- GÁN SỰ KIỆN ---
+        document.getElementById('btn-roll').onclick = rollDice;
+        document.getElementById('dice-visual').onclick = rollDice;
+        document.getElementById('btn-close-riddle').onclick = closeRiddle;
+        document.getElementById('btn-change-riddle').onclick = changeRiddleRandomly;
+        document.getElementById('btn-settings').onclick = () => { setupSettingsUI(); document.getElementById('modal-settings').classList.remove('hidden'); };
+        document.getElementById('btn-close-settings').onclick = () => document.getElementById('modal-settings').classList.add('hidden');
+        document.getElementById('btn-open-layout-mode').onclick = () => { state.isEditing = true; renderBoard(); document.getElementById('setup-window').style.display = 'block'; document.getElementById('edit-overlay').style.display = 'block'; document.getElementById('modal-settings').classList.add('hidden'); };
+        document.getElementById('btn-finish-edit').onclick = () => { state.isEditing = false; renderBoard(); document.getElementById('setup-window').style.display = 'none'; document.getElementById('edit-overlay').style.display = 'none'; document.getElementById('modal-settings').classList.remove('hidden'); saveAllToDB(); };
+        
+        // TÍNH NĂNG MỚI: Xử lý 2 nút sự kiện End Game
+        document.getElementById('btn-play-again').onclick = () => {
+            document.getElementById('modal-game-over').classList.add('hidden');
+            state.gameOver = false;
+            state.turn = 0;
+            state.players.forEach(p => p.pos = 0);
+            document.getElementById('btn-roll').disabled = false;
+            document.getElementById('btn-close-riddle').innerText = "Xác nhận đi ➔";
+            drawAvatars();
+            updatePlayerUI();
+            updateStatus();
+        };
+
+        document.getElementById('btn-stop-playing').onclick = () => {
+            document.getElementById('modal-game-over').classList.add('hidden');
+        };
+
+        document.getElementById('input-bg-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { state.bgImage = ev.target.result; renderBoard(); saveAllToDB(); };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        // GÁN SỰ KIỆN TIMER
+        document.getElementById('timer-start').onclick = startTimer;
+        document.getElementById('timer-pause').onclick = pauseTimer;
+        document.getElementById('timer-stop').onclick = stopTimer;
+
+        document.getElementById('btn-save-all').onclick = () => {
+            saveAllToDB();
+            updatePlayerUI();
+            document.getElementById('modal-settings').classList.add('hidden');
+            alert("Đã lưu tổng thể và đồng bộ toàn bộ dữ liệu Studio!");
+        };
+    </script>
+</body>
+</html>
